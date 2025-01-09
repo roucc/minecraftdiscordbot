@@ -139,16 +139,22 @@ func Activity(s *discordgo.Session) {
 		case len(l) > 0:
 			s.ChannelMessageSend(config.BotChannelID, fmt.Sprintf("%s left", strings.Join(l, ", ")))
 		}
-		time.Sleep(5 * time.Second) // Adjust the sleep duration as needed
+		time.Sleep(2 * time.Second)
 	}
 }
 
 // respond is a helper function to create a Discord interaction response
-func respond(content string) *discordgo.InteractionResponse {
+func respond(content string, extraContent ...map[string]int) *discordgo.InteractionResponse {
+	var extra string
+	if len(extraContent) > 0 && extraContent[0] != nil {
+		for key, value := range extraContent[0] {
+			extra += fmt.Sprintf("%s: %d\n", key, value)
+		}
+	}
 	return &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: content,
+			Content: content + extra,
 		},
 	}
 }
@@ -199,7 +205,7 @@ func main() {
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "stat",
-				Description: "The stat to query (e.g. minecraft:jump)",
+				Description: "The stat to query (e.g. custom:jump), for help type 'help:key' or 'category:help'",
 				Required:    true,
 			},
 			{
@@ -256,7 +262,6 @@ func main() {
 			statName := options[0].StringValue()
 			playerName := options[1].StringValue()
 
-			// 1) Convert name to UUID
 			uuidMap, err := ParseUserCache("usercache.json")
 			if err != nil {
 				s.InteractionRespond(i.Interaction, respond("Error reading usercache."))
@@ -265,7 +270,7 @@ func main() {
 
 			var uuid string
 			for k, v := range uuidMap {
-				if strings.EqualFold(v, playerName) { // Case-insensitive match
+				if strings.EqualFold(v, playerName) {
 					uuid = k
 					break
 				}
@@ -276,7 +281,7 @@ func main() {
 				return
 			}
 
-			// 2) Parse that player’s stats
+			// Parse stats
 			statsPath := fmt.Sprintf("world/stats/%s.json", uuid)
 			sf, err := ParseStats(statsPath)
 			if err != nil {
@@ -284,34 +289,49 @@ func main() {
 				return
 			}
 
-			// 3) Attempt to retrieve statName from the appropriate category
-			var val int
-			found := false
-			for _, stats := range sf.Stats {
-				if val, found = stats[statName]; found {
-					break
-				}
-			}
-
-			if !found {
-				s.InteractionRespond(i.Interaction, respond(fmt.Sprintf("Stat '%s' not found for player '%s'.", statName, playerName)))
+			parts := strings.SplitN(statName, ":", 2)
+			if len(parts) != 2 {
+				s.InteractionRespond(i.Interaction, respond("Stat must be in 'category:key' format, e.g., 'used:torch' or 'custom:jumps'."))
 				return
 			}
 
-			// 4) Respond
-			response := fmt.Sprintf("%s's %s: %d", playerName, statName, val)
+			if parts[0] == "help" {
+				s.InteractionRespond(i.Interaction, respond("Options are: 'custom', 'broken', 'used', 'picked_up', 'killed', 'dropped', 'mined', 'crafted', 'killed_by'."))
+				return
+			}
+
+			if parts[1] == "help" {
+				categoryStats := sf.Stats["minecraft:"+parts[0]]
+				s.InteractionRespond(i.Interaction, respond("Options for this category are:", categoryStats))
+				return
+			}
+
+			category := "minecraft:" + parts[0]
+			key := "minecraft:" + parts[1]
+
+			categoryStats, categoryExists := sf.Stats[category]
+			if !categoryExists {
+				s.InteractionRespond(i.Interaction, respond(fmt.Sprintf("Category '%s' not found.", category)))
+				return
+			}
+
+			val, keyExists := categoryStats[key]
+			if !keyExists {
+				s.InteractionRespond(i.Interaction, respond(fmt.Sprintf("Stat '%s' not found in category '%s'.", key, category)))
+				return
+			}
+
+			response := fmt.Sprintf("%s's %s (%s): %d", playerName, key, category, val)
 			s.InteractionRespond(i.Interaction, respond(response))
 		}
 	})
 
-	// Optional: handle normal messages
 	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if m.Author.ID != s.State.User.ID && strings.ToLower(m.Content) == "hi" {
-			s.ChannelMessageSend(m.ChannelID, "Hello!")
+			s.ChannelMessageSend(m.ChannelID, "chat")
 		}
 	})
 
-	// Start Activity monitoring
 	go Activity(s)
 
 	fmt.Println("Bot is running. Press CTRL-C to exit.")
