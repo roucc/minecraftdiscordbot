@@ -128,8 +128,10 @@ func Activity(s *discordgo.Session) {
 	for {
 		resp, err := conn.Execute("list")
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			continue
 		}
+
 		j, l := changes(resp)
 		switch {
 		case len(j) > 0 && len(l) > 0:
