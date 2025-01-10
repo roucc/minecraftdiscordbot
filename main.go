@@ -129,6 +129,7 @@ func Activity(s *discordgo.Session) {
 		resp, err := conn.Execute("list")
 		if err != nil {
 			log.Println(err)
+			time.Sleep(30 * time.Second)
 			continue
 		}
 
