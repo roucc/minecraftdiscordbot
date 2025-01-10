@@ -309,6 +309,18 @@ func main() {
 				return
 			}
 
+			if parts[1] == "play_time" {
+				categoryStats := sf.Stats["minecraft:custom"]
+				val, keyExists := categoryStats["minecraft:play_time"]
+				if keyExists {
+					// Convert from ticks to hours
+					hours := float64(val) / (20 * 3600)
+					response := fmt.Sprintf("%s's play time: %.2f hours", playerName, hours)
+					s.InteractionRespond(i.Interaction, respond(response))
+					return
+				}
+			}
+
 			category := "minecraft:" + parts[0]
 			key := "minecraft:" + parts[1]
 
