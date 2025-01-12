@@ -224,6 +224,66 @@ func main() {
 		log.Fatal("Error registering /stats command:", err)
 	}
 
+	cmdDifficulty := &discordgo.ApplicationCommand{
+		Name:        "difficulty",
+		Description: "change the current difficulty level",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "difficulty",
+				Description: "The difficulty level to set",
+				Required:    true,
+			},
+		},
+	}
+
+	_, err = s.ApplicationCommandCreate(botUser.ID, config.GuildID, cmdDifficulty)
+	if err != nil {
+		log.Fatal("Error registering /difficulty command:", err)
+	}
+
+	cmdSetCustomModelData := &discordgo.ApplicationCommand{
+		Name:        "setcustommodeldata",
+		Description: "Set the custom model data of an item (DONT USE IF U DONT KNOW WHAT U DOING *for datapacks*)",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "player",
+				Description: "The player's name",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionInteger,
+				Name:        "custommodeldata",
+				Description: "The custom model data to set",
+				Required:    true,
+			},
+		},
+	}
+
+	_, err = s.ApplicationCommandCreate(botUser.ID, config.GuildID, cmdSetCustomModelData)
+	if err != nil {
+		log.Fatal("Error registering /setcustommodeldata command:", err)
+	}
+
+	cmdWhitelist := &discordgo.ApplicationCommand{
+		Name:        "whitelist",
+		Description: "add to whitelist",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "player",
+				Description: "The player's name",
+				Required:    true,
+			},
+		},
+	}
+
+	_, err = s.ApplicationCommandCreate(botUser.ID, config.GuildID, cmdWhitelist)
+	if err != nil {
+		log.Fatal("Error registering /whitelist command:", err)
+	}
+
 	// Handle interactions
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if i.Type != discordgo.InteractionApplicationCommand {
@@ -253,6 +313,88 @@ func main() {
 				return
 			}
 			s.InteractionRespond(i.Interaction, respond(fmt.Sprintf("Online Players: %s", strings.Join(players, ", "))))
+
+		case "whitelist":
+			// Handle /whitelist command
+			options := i.ApplicationCommandData().Options
+			if len(options) < 1 {
+				s.InteractionRespond(i.Interaction, respond("Please provide a player name."))
+				return
+			}
+
+			playerName := options[0].StringValue()
+			conn, err := rcon.Dial(config.RconAddr, config.RconPass)
+			if err != nil {
+				s.InteractionRespond(i.Interaction, respond("Error connecting to RCON."))
+				return
+			}
+			defer conn.Close()
+
+			resp, err := conn.Execute(fmt.Sprintf("whitelist add %s", playerName))
+			if err != nil {
+				s.InteractionRespond(i.Interaction, respond("Error executing RCON command."))
+				return
+			}
+
+			s.InteractionRespond(i.Interaction, respond(resp))
+
+		case "setcustommodeldata":
+			// Handle /setcustommodeldata command
+			options := i.ApplicationCommandData().Options
+			if len(options) < 2 {
+				s.InteractionRespond(i.Interaction, respond("Please provide both player name and custom model data."))
+				return
+			}
+
+			playerName := options[0].StringValue()
+			customModelData := options[1].IntValue()
+
+			conn, err := rcon.Dial(config.RconAddr, config.RconPass)
+			if err != nil {
+				s.InteractionRespond(i.Interaction, respond("Error connecting to RCON."))
+				return
+			}
+			defer conn.Close()
+
+			resp, err := conn.Execute(fmt.Sprintf(`item modify entity %s weapon.mainhand { "function": "minecraft:set_custom_model_data", "floats": { "values": [ %d ], "mode": "replace_all" }}`, playerName, customModelData))
+			if err != nil {
+				fmt.Print(err)
+				s.InteractionRespond(i.Interaction, respond("Error executing RCON command."))
+				return
+			}
+
+			s.InteractionRespond(i.Interaction, respond(resp))
+
+		case "difficulty":
+			// Handle /difficulty command
+			options := i.ApplicationCommandData().Options
+			if len(options) < 1 {
+				s.InteractionRespond(i.Interaction, respond("Please provide a difficulty level."))
+				return
+			}
+
+			difficulty := options[0].StringValue()
+
+			if difficulty == "peaceful" {
+				s.InteractionRespond(i.Interaction, respond("Peaceful mode is not allowed."))
+				return
+			}
+
+			conn, err := rcon.Dial(config.RconAddr, config.RconPass)
+
+			if err != nil {
+				s.InteractionRespond(i.Interaction, respond("Error connecting to RCON."))
+				return
+			}
+			defer conn.Close()
+
+			resp, err := conn.Execute(fmt.Sprintf("difficulty %s", difficulty))
+			if err != nil {
+				s.InteractionRespond(i.Interaction, respond("Error executing RCON command."))
+				return
+			}
+
+			s.InteractionRespond(i.Interaction, respond(resp))
 
 		case "stats":
 			// Handle /stats command
