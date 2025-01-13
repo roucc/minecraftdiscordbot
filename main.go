@@ -125,13 +125,19 @@ func Activity(s *discordgo.Session) {
 	}
 	defer conn.Close()
 
+	count := 0
 	for {
 		resp, err := conn.Execute("list")
 		if err != nil {
 			log.Println(err)
-			time.Sleep(30 * time.Second)
+			time.Sleep(time.Second * 30)
+			count++
+			if count > 5 {
+				log.Fatal("Failed to execute RCON command 5 times in a row")
+			}
 			continue
 		}
+		count = 0
 
 		j, l := changes(resp)
 		switch {
