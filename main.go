@@ -453,6 +453,11 @@ func main() {
 
 			if parts[1] == "help" {
 				categoryStats := sf.Stats["minecraft:"+parts[0]]
+				if categoryStats == nil {
+					s.InteractionRespond(i.Interaction, respond(fmt.Sprintf("Category '%s' not found.", parts[0])))
+					return
+				}
+
 				s.InteractionRespond(i.Interaction, respond("Options for this category are:", categoryStats))
 				return
 			}
